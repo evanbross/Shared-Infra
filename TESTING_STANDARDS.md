@@ -39,6 +39,28 @@ regressions in the noise.
 
 ---
 
+## Run Targeted Tests While Iterating; the Full Suite Once
+
+**This applies to every code edit, not only edits to test files.** Size verification to
+the change:
+
+- **While iterating:** run only the test files that exercise the code you touched, e.g.
+  `uv run pytest -q tests/test_contacts_routes.py`. Find them with
+  `grep -rl "<module or function name>" tests/`.
+- **Changes no test exercises** (string/typo fixes, imports, startup wiring, config,
+  comments): run the narrowest direct check instead — an import (`python -c "import app"`),
+  the linter on the touched files, or the one command that exercises the change.
+- **Full suite:** once before committing, or leave it to CI. Never after every edit.
+
+A project whose full suite takes more than a few minutes should say how long in its
+`CLAUDE.md`/`AGENTS.md`, so agents know the cost of reaching for it.
+
+**Why:** a 15-minute suite run after each of several small edits turns a typo fix into a
+half-hour task. Targeted runs catch the same regressions in the code that changed; the
+pre-commit full run (or CI) catches the rest.
+
+---
+
 ## No Mocked Databases in Integration Tests
 
 Integration tests must run against a real database instance, not mocks. A test suite that
