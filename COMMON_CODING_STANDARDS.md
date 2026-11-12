@@ -218,6 +218,35 @@ at startup" is non-obvious to trace.
 
 ---
 
+## A Timeout Is Not a Time Limit Until You Check the Retry Policy
+
+When you set a short timeout on a network client so a call fails fast (a cache, a rate
+limiter, a health probe, anything with a degrade-gracefully path), check the client
+library's **default retry policy** too, and set it explicitly. Many clients silently retry
+failed calls with backoff, so the real worst case is
+`(retries + 1) × timeout + total backoff`, not `timeout`.
+
+Known offenders: redis-py 6+ (3 retries, exponential backoff, on by default), boto3/botocore
+(3–5 retries by mode), urllib3 `Retry` behind `requests` adapters, the AWS JS SDK v3,
+gRPC service configs, and many HTTP SDKs generated from OpenAPI specs.
+
+**How to apply:**
+- Wherever clients are built (ideally one shared factory), pass the retry policy
+  explicitly, and say in a comment why that policy was chosen.
+- If the caller already handles failure (degrades, refuses, reports "unreachable"), prefer
+  zero or one immediate retry. One retry still absorbs the common blip, a pooled
+  connection dropped by a server restart.
+- Tests that simulate an unreachable dependency should build their client with the same
+  policy production uses, so they exercise production's real failure behaviour. Add one
+  test that asserts the failure comes back within a bound.
+
+**Why:** in JobHuntAssistant, every Redis client set a 1–2 s timeout to fail fast, but
+redis-py's default retries made a single call against a down Redis take ~10 s (measured:
+9.8 s with a 0.2 s timeout). In a real outage that stalls every request through the rate
+limiter, and in tests it added ~2 minutes to the suite. Nothing errored; it was just slow.
+
+---
+
 ## File Headers
 
 Every new source file must begin with the copyright/license header for its language. Copy the appropriate template verbatim as the first block of the file — do not paraphrase or abbreviate it.
